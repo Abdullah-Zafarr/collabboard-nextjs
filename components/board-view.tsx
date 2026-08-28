@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   Activity as ActivityIcon, ArrowLeft, CalendarDays, Check, ChevronRight,
-  CircleUserRound, Clock3, GripVertical, LayoutDashboard, MessageSquare,
+  CircleUserRound, Clock3, Coins, GripVertical, LayoutDashboard, MessageSquare,
   Paperclip, Plus, Send, Trash2, Upload, UserPlus, Users, X,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
@@ -26,6 +26,7 @@ export function BoardView({ workspace, user }: { workspace: Workspace; user: { i
   const [tasks, setTasks] = useState<Task[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
   const [activity, setActivity] = useState<Activity[]>([]);
+  const [credits, setCredits] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editor, setEditor] = useState<{ task: Task | null; columnId: string } | null>(null);
@@ -33,24 +34,27 @@ export function BoardView({ workspace, user }: { workspace: Workspace; user: { i
   const [inviteOpen, setInviteOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteStatus, setInviteStatus] = useState<string | null>(null);
+  const [deletingColumnId, setDeletingColumnId] = useState<string | null>(null);
 
   const loadBoard = useCallback(async () => {
-    const [columnResult, taskResult, memberResult, activityResult] = await Promise.all([
+    const [columnResult, taskResult, memberResult, activityResult, creditResult] = await Promise.all([
       supabase.from("board_columns").select("*").eq("workspace_id", workspace.id).order("position"),
       supabase.from("tasks").select("*").eq("workspace_id", workspace.id).order("position"),
       supabase.from("workspace_members").select("workspace_id, user_id, role, profiles(id, email, display_name, avatar_url)").eq("workspace_id", workspace.id),
       supabase.from("activity_logs").select("*").eq("workspace_id", workspace.id).order("created_at", { ascending: false }).limit(30),
+      supabase.from("credits").select("credits_count").eq("user_id", user.id).single(),
     ]);
-    const firstError = columnResult.error ?? taskResult.error ?? memberResult.error ?? activityResult.error;
+    const firstError = columnResult.error ?? taskResult.error ?? memberResult.error ?? activityResult.error ?? creditResult.error;
     if (firstError) setError(firstError.message);
     else {
       setColumns((columnResult.data ?? []) as BoardColumn[]);
       setTasks((taskResult.data ?? []) as Task[]);
       setMembers((memberResult.data ?? []) as unknown as Member[]);
       setActivity((activityResult.data ?? []) as Activity[]);
+      setCredits(creditResult.data?.credits_count ?? 0);
     }
     setLoading(false);
-  }, [supabase, workspace.id]);
+  }, [supabase, user.id, workspace.id]);
 
   useEffect(() => {
     void loadBoard();
@@ -71,10 +75,59 @@ export function BoardView({ workspace, user }: { workspace: Workspace; user: { i
   }
 
   async function addColumn() {
-    const title = window.prompt("Column name");
+    if (credits === null) return;
+    if (credits < 10) {
+      setError("You need 10 credits to add a column.");
+      return;
+    }
+
+    const title = window.prompt("Column name (costs 10 credits)");
     if (!title?.trim()) return;
-    const { error } = await supabase.from("board_columns").insert({ workspace_id: workspace.id, title: title.trim(), position: columns.length });
-    if (error) setError(error.message); else void loadBoard();
+    setError(null);
+    const { error } = await supabase.rpc("create_board_column", {
+      target_workspace: workspace.id,
+      column_title: title.trim(),
+    });
+    if (error) {
+      setError(error.message);
+      void loadBoard();
+    } else {
+      setCredits((current) => current === null ? current : current - 10);
+      void loadBoard();
+    }
+  }
+
+  async function deleteColumn(column: BoardColumn) {
+    if (columns.length <= 1) {
+      setError("A board must keep at least one column.");
+      return;
+    }
+
+    const deletedTaskIds = new Set(tasks.filter((task) => task.column_id === column.id).map((task) => task.id));
+    const taskCount = deletedTaskIds.size;
+    const taskWarning = taskCount === 0
+      ? "This action does not refund credits."
+      : `This will also delete ${taskCount} ${taskCount === 1 ? "task" : "tasks"}. Credits are not refunded.`;
+    const confirmed = window.confirm(`Delete "${column.title}"? ${taskWarning}`);
+    if (!confirmed) return;
+
+    setDeletingColumnId(column.id);
+    setError(null);
+    const { error } = await supabase
+      .from("board_columns")
+      .delete()
+      .eq("id", column.id);
+
+    if (error) setError(error.message);
+    else {
+      setColumns((current) => current.filter((item) => item.id !== column.id));
+      setTasks((current) => current.filter((task) => task.column_id !== column.id));
+      setActivity((current) => current.filter((item) =>
+        !(item.entity_type === "column" && item.entity_id === column.id)
+        && !(item.entity_type === "task" && item.entity_id && deletedTaskIds.has(item.entity_id)),
+      ));
+    }
+    setDeletingColumnId(null);
   }
 
   async function invite(event: React.FormEvent) {
@@ -96,6 +149,7 @@ export function BoardView({ workspace, user }: { workspace: Workspace; user: { i
           <h1 className="truncate text-lg font-bold tracking-tight">{workspace.name}</h1>
         </div>
         <div className="flex items-center gap-2">
+          <span className="hidden text-xs text-slate-500 md:inline">Credits: <span className="font-semibold text-slate-800">{credits ?? "--"}</span></span>
           <div className="hidden -space-x-2 sm:flex">{members.slice(0,4).map((member) => <Avatar key={member.user_id} name={member.profiles?.display_name ?? member.profiles?.email ?? "?"} />)}</div>
           {workspace.owner_id === user.id && <button onClick={() => setInviteOpen((value) => !value)} className="flex h-9 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold shadow-sm hover:border-emerald-200"><UserPlus className="size-4" /><span className="hidden sm:inline">Invite</span></button>}
           <button onClick={() => setShowActivity((value) => !value)} className={`grid size-9 place-items-center rounded-xl border shadow-sm ${showActivity ? 'border-emerald-300 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-white text-slate-600'}`}><ActivityIcon className="size-4" /></button>
@@ -110,17 +164,20 @@ export function BoardView({ workspace, user }: { workspace: Workspace; user: { i
           <h2 className="mt-1 text-2xl font-bold tracking-[-0.03em]">Plan and ship together</h2>
           <p className="mt-1 text-sm text-slate-500">{tasks.length} {tasks.length === 1 ? "task" : "tasks"} across {columns.length} stages | {members.length} {members.length === 1 ? "collaborator" : "collaborators"}</p>
         </div>
-        {columns[0] && <button onClick={() => setEditor({ task: null, columnId: columns[0].id })} className="flex h-10 items-center justify-center gap-2 rounded-xl bg-emerald-500 px-5 text-sm font-bold text-white shadow-lg shadow-emerald-200 transition hover:-translate-y-0.5 hover:bg-emerald-600"><Plus className="size-4" /> New task</button>}
+        <div className="flex flex-wrap items-center gap-2">
+          <button onClick={addColumn} disabled={credits === null || credits < 10} className="flex h-10 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-600 shadow-sm transition hover:border-emerald-300 hover:text-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"><Plus className="size-4" /> Add column <span className="flex items-center gap-1 rounded-md bg-amber-50 px-1.5 py-0.5 text-[10px] text-amber-700"><Coins className="size-3" />10</span></button>
+          {columns[0] && <button onClick={() => setEditor({ task: null, columnId: columns[0].id })} className="flex h-10 items-center justify-center gap-2 rounded-xl bg-emerald-500 px-5 text-sm font-bold text-white shadow-lg shadow-emerald-200 transition hover:-translate-y-0.5 hover:bg-emerald-600"><Plus className="size-4" /> New task</button>}
+        </div>
       </div>
       <div className="flex min-h-0 flex-1">
-        <section className="min-w-0 flex-1 overflow-x-auto p-4 lg:p-6">
-          {loading ? <div className="grid min-w-[850px] grid-cols-3 gap-5">{[1,2,3].map((item) => <div key={item} className="h-[calc(100vh-240px)] animate-pulse rounded-3xl bg-slate-200/70" />)}</div> : (
-            <div className="flex min-w-max items-start gap-4 pb-4">
+        <section className="min-w-0 flex-1 p-4 lg:p-6">
+          {loading ? <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">{[1,2,3].map((item) => <div key={item} className="h-[calc(100vh-240px)] animate-pulse rounded-3xl bg-slate-200/70" />)}</div> : (
+            <div className="grid grid-cols-1 items-start gap-4 pb-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
               {columns.map((column) => {
                 const columnTasks = tasks.filter((task) => task.column_id === column.id);
                 return (
-                  <div key={column.id} onDragOver={(event) => event.preventDefault()} onDrop={(event) => void moveTask(event.dataTransfer.getData("taskId"), column.id)} className="flex w-[330px] flex-col rounded-3xl border border-slate-200/80 bg-white/70 p-3.5 shadow-sm backdrop-blur">
-                    <div className="mb-4 flex items-center justify-between px-1.5"><div className="flex items-center gap-2"><span className={`size-2 rounded-full ${column.title.toLowerCase().includes('done') ? 'bg-emerald-500' : column.title.toLowerCase().includes('progress') ? 'bg-amber-500' : 'bg-slate-400'}`} /><h2 className="text-sm font-bold">{column.title}</h2><span className="rounded-md bg-white px-2 py-0.5 text-[10px] font-bold text-slate-400">{columnTasks.length}</span></div></div>
+                  <div key={column.id} onDragOver={(event) => event.preventDefault()} onDrop={(event) => void moveTask(event.dataTransfer.getData("taskId"), column.id)} className="flex min-w-0 flex-col rounded-3xl border border-slate-200/80 bg-white/70 p-3.5 shadow-sm backdrop-blur">
+                    <div className="mb-4 flex items-center justify-between gap-2 px-1.5"><div className="flex min-w-0 items-center gap-2"><span className={`size-2 shrink-0 rounded-full ${column.title.toLowerCase().includes('done') ? 'bg-emerald-500' : column.title.toLowerCase().includes('progress') ? 'bg-amber-500' : 'bg-slate-400'}`} /><h2 className="truncate text-sm font-bold">{column.title}</h2><span className="rounded-md bg-white px-2 py-0.5 text-[10px] font-bold text-slate-400">{columnTasks.length}</span></div><button type="button" disabled={deletingColumnId === column.id || columns.length <= 1} onClick={() => void deleteColumn(column)} aria-label={`Delete ${column.title}`} className="grid size-8 shrink-0 place-items-center rounded-lg text-slate-400 transition hover:bg-rose-50 hover:text-rose-600 disabled:cursor-not-allowed disabled:opacity-30"><Trash2 className="size-3.5" /></button></div>
                     <div className="space-y-3">
                       {columnTasks.length === 0 && <button onClick={() => setEditor({ task: null, columnId: column.id })} className="flex min-h-36 w-full flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50/60 px-6 text-center transition hover:border-emerald-300 hover:bg-emerald-50/70"><span className="grid size-10 place-items-center rounded-full bg-white text-emerald-600 shadow-sm"><Plus className="size-4" /></span><span className="mt-3 text-sm font-bold text-slate-700">No tasks yet</span><span className="mt-1 text-xs text-slate-400">Add the first task to this stage</span></button>}                      {columnTasks.map((task) => (
                         <article key={task.id} draggable onDragStart={(event) => { event.dataTransfer.setData("taskId", task.id); event.dataTransfer.effectAllowed = "move"; }} onClick={() => setEditor({ task, columnId: column.id })} className="group cursor-grab rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-200 hover:shadow-md active:cursor-grabbing">
@@ -135,7 +192,6 @@ export function BoardView({ workspace, user }: { workspace: Workspace; user: { i
                   </div>
                 );
               })}
-              <button onClick={addColumn} className="flex h-14 w-[240px] items-center justify-center gap-2 rounded-2xl border border-dashed border-slate-300 bg-white/50 px-4 text-sm font-bold text-slate-500 transition hover:border-emerald-400 hover:bg-emerald-50 hover:text-emerald-700"><Plus className="size-4" /> Add column</button>
             </div>
           )}
         </section>

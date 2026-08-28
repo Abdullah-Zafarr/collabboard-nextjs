@@ -2,6 +2,8 @@
 
 CollabBoard is a realtime, multi-user Kanban board built as a creative extension of Vercel's Next.js + Supabase starter. Teams can create private workspaces, invite registered users, move tasks between columns, discuss work, and attach files.
 
+![CollabBoard UI](screenshots/ui.PNG)
+
 ## Features
 
 - Supabase email/password authentication
@@ -11,13 +13,14 @@ CollabBoard is a realtime, multi-user Kanban board built as a creative extension
 - Realtime board and activity updates
 - Task comments and private file attachments
 - Owner-controlled member invitations
+- Persistent credits with atomic workspace and column charges
 - Row Level Security on every application table
 - Responsive Next.js App Router interface
 
 ## Local setup
 
 1. Create a project at [Supabase](https://supabase.com/dashboard).
-2. Open the Supabase SQL editor and run [`supabase/migrations/20260828000000_create_collab_board.sql`](supabase/migrations/20260828000000_create_collab_board.sql).
+2. Open the Supabase SQL editor and run both files in `supabase/migrations` in filename order: first `20260828000000_create_collab_board.sql`, then `20260828020000_add_credit_system.sql`.
 3. Copy `.env.example` to `.env.local` and add the values from **Project Settings → API**:
 
    ```env
@@ -38,7 +41,7 @@ Invited teammates must already have a CollabBoard account. This keeps the MVP in
 
 ## Database model
 
-The migration creates `profiles`, `workspaces`, `workspace_members`, `board_columns`, `tasks`, `comments`, `attachments`, and `activity_logs`. It also creates the private `task-attachments` Storage bucket, realtime publication entries, user-profile trigger, workspace creation RPC, invitation RPC, indexes, and RLS policies.
+The migrations create `profiles`, `credits`, `workspaces`, `workspace_members`, `board_columns`, `tasks`, `comments`, `attachments`, and `activity_logs`. It also creates the private `task-attachments` Storage bucket, realtime publication entries, user-profile trigger, atomic charged workspace/column RPCs, invitation RPC, indexes, and RLS policies.
 
 All authorization is enforced in Postgres. Client-side route and button checks are presentation conveniences rather than the security boundary.
 
