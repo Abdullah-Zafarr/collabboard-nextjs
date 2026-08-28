@@ -87,14 +87,13 @@ export function BoardView({ workspace, user }: { workspace: Workspace; user: { i
   const memberById = useMemo(() => new Map(members.map((member) => [member.user_id, member.profiles])), [members]);
 
   return (
-    <main className="flex min-h-screen flex-col bg-[#f6f8f7] text-slate-900">
-      <header className="flex h-16 items-center justify-between border-b border-slate-200 bg-white px-4 lg:px-7">
+    <main className="flex min-h-screen flex-col bg-[radial-gradient(circle_at_top_left,#ecfdf5_0,#f7f9f8_34rem)] text-slate-900">
+      <header className="flex h-[72px] items-center justify-between border-b border-slate-200 bg-white/95 px-4 backdrop-blur lg:px-7">
         <div className="flex min-w-0 items-center gap-3">
           <Link href="/dashboard" aria-label="Back to workspaces" className="grid size-9 place-items-center rounded-xl text-slate-500 hover:bg-slate-100"><ArrowLeft className="size-4" /></Link>
           <span className="hidden size-8 place-items-center rounded-lg bg-emerald-500 text-white sm:grid"><LayoutDashboard className="size-4" /></span>
           <ChevronRight className="hidden size-4 text-slate-300 sm:block" />
-          <h1 className="truncate font-bold">{workspace.name}</h1>
-          <span className="hidden items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-emerald-700 sm:flex"><span className="size-1.5 rounded-full bg-emerald-500" /> Live</span>
+          <h1 className="truncate text-lg font-bold tracking-tight">{workspace.name}</h1>
         </div>
         <div className="flex items-center gap-2">
           <div className="hidden -space-x-2 sm:flex">{members.slice(0,4).map((member) => <Avatar key={member.user_id} name={member.profiles?.display_name ?? member.profiles?.email ?? "?"} />)}</div>
@@ -105,18 +104,25 @@ export function BoardView({ workspace, user }: { workspace: Workspace; user: { i
 
       {inviteOpen && <form onSubmit={invite} className="flex flex-wrap items-center gap-3 border-b border-slate-200 bg-white px-5 py-3 text-sm"><Users className="size-4 text-emerald-600" /><input type="email" required value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} placeholder="Teammate's registered email" className="min-w-[240px] flex-1 rounded-xl border border-slate-200 px-3 py-2 outline-none focus:border-emerald-400" /><button className="rounded-xl bg-slate-900 px-4 py-2 font-bold text-white">Add member</button>{inviteStatus && <span className={inviteStatus.startsWith('Member') ? 'text-emerald-600' : 'text-rose-600'}>{inviteStatus}</span>}</form>}
       {error && <div className="border-b border-rose-100 bg-rose-50 px-6 py-2 text-sm text-rose-700">{error}<button onClick={() => setError(null)} className="ml-3 underline">Dismiss</button></div>}
-
+      <div className="flex flex-col gap-4 border-b border-slate-200/80 bg-white/60 px-4 py-5 sm:flex-row sm:items-end sm:justify-between lg:px-7">
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-600">Project board</p>
+          <h2 className="mt-1 text-2xl font-bold tracking-[-0.03em]">Plan and ship together</h2>
+          <p className="mt-1 text-sm text-slate-500">{tasks.length} {tasks.length === 1 ? "task" : "tasks"} across {columns.length} stages | {members.length} {members.length === 1 ? "collaborator" : "collaborators"}</p>
+        </div>
+        {columns[0] && <button onClick={() => setEditor({ task: null, columnId: columns[0].id })} className="flex h-10 items-center justify-center gap-2 rounded-xl bg-emerald-500 px-5 text-sm font-bold text-white shadow-lg shadow-emerald-200 transition hover:-translate-y-0.5 hover:bg-emerald-600"><Plus className="size-4" /> New task</button>}
+      </div>
       <div className="flex min-h-0 flex-1">
-        <section className="min-w-0 flex-1 overflow-x-auto p-4 lg:p-7">
-          {loading ? <div className="grid min-w-[850px] grid-cols-3 gap-5">{[1,2,3].map((item) => <div key={item} className="h-[420px] animate-pulse rounded-2xl bg-slate-200/70" />)}</div> : (
-            <div className="flex min-w-max items-start gap-5">
+        <section className="min-w-0 flex-1 overflow-x-auto p-4 lg:p-6">
+          {loading ? <div className="grid min-w-[850px] grid-cols-3 gap-5">{[1,2,3].map((item) => <div key={item} className="h-[calc(100vh-240px)] animate-pulse rounded-3xl bg-slate-200/70" />)}</div> : (
+            <div className="flex min-w-max items-start gap-4 pb-4">
               {columns.map((column) => {
                 const columnTasks = tasks.filter((task) => task.column_id === column.id);
                 return (
-                  <div key={column.id} onDragOver={(event) => event.preventDefault()} onDrop={(event) => void moveTask(event.dataTransfer.getData("taskId"), column.id)} className="w-[310px] rounded-2xl bg-slate-100/80 p-3">
-                    <div className="mb-3 flex items-center justify-between px-1.5"><div className="flex items-center gap-2"><span className={`size-2 rounded-full ${column.title.toLowerCase().includes('done') ? 'bg-emerald-500' : column.title.toLowerCase().includes('progress') ? 'bg-amber-500' : 'bg-slate-400'}`} /><h2 className="text-sm font-bold">{column.title}</h2><span className="rounded-md bg-white px-2 py-0.5 text-[10px] font-bold text-slate-400">{columnTasks.length}</span></div></div>
-                    <div className="min-h-20 space-y-3">
-                      {columnTasks.map((task) => (
+                  <div key={column.id} onDragOver={(event) => event.preventDefault()} onDrop={(event) => void moveTask(event.dataTransfer.getData("taskId"), column.id)} className="flex w-[330px] flex-col rounded-3xl border border-slate-200/80 bg-white/70 p-3.5 shadow-sm backdrop-blur">
+                    <div className="mb-4 flex items-center justify-between px-1.5"><div className="flex items-center gap-2"><span className={`size-2 rounded-full ${column.title.toLowerCase().includes('done') ? 'bg-emerald-500' : column.title.toLowerCase().includes('progress') ? 'bg-amber-500' : 'bg-slate-400'}`} /><h2 className="text-sm font-bold">{column.title}</h2><span className="rounded-md bg-white px-2 py-0.5 text-[10px] font-bold text-slate-400">{columnTasks.length}</span></div></div>
+                    <div className="space-y-3">
+                      {columnTasks.length === 0 && <button onClick={() => setEditor({ task: null, columnId: column.id })} className="flex min-h-36 w-full flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50/60 px-6 text-center transition hover:border-emerald-300 hover:bg-emerald-50/70"><span className="grid size-10 place-items-center rounded-full bg-white text-emerald-600 shadow-sm"><Plus className="size-4" /></span><span className="mt-3 text-sm font-bold text-slate-700">No tasks yet</span><span className="mt-1 text-xs text-slate-400">Add the first task to this stage</span></button>}                      {columnTasks.map((task) => (
                         <article key={task.id} draggable onDragStart={(event) => { event.dataTransfer.setData("taskId", task.id); event.dataTransfer.effectAllowed = "move"; }} onClick={() => setEditor({ task, columnId: column.id })} className="group cursor-grab rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-200 hover:shadow-md active:cursor-grabbing">
                           <div className="flex items-start justify-between gap-2"><span className={`rounded-md px-2 py-1 text-[9px] font-bold uppercase tracking-wider ring-1 ${priorityStyles[task.priority]}`}>{task.priority}</span><GripVertical className="size-4 text-slate-200 group-hover:text-slate-400" /></div>
                           <h3 className="mt-3 text-sm font-bold leading-5">{task.title}</h3>
@@ -125,16 +131,16 @@ export function BoardView({ workspace, user }: { workspace: Workspace; user: { i
                         </article>
                       ))}
                     </div>
-                    <button onClick={() => setEditor({ task: null, columnId: column.id })} className="mt-3 flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-xs font-bold text-slate-500 hover:bg-white hover:text-emerald-600"><Plus className="size-4" /> Add task</button>
+                    <button onClick={() => setEditor({ task: null, columnId: column.id })} className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs font-bold text-slate-600 shadow-sm transition hover:border-emerald-200 hover:text-emerald-600"><Plus className="size-4" /> Add task</button>
                   </div>
                 );
               })}
-              <button onClick={addColumn} className="flex w-[220px] items-center gap-2 rounded-2xl border border-dashed border-slate-300 px-4 py-3 text-sm font-bold text-slate-500 hover:border-emerald-400 hover:bg-emerald-50 hover:text-emerald-700"><Plus className="size-4" /> Add column</button>
+              <button onClick={addColumn} className="flex h-14 w-[240px] items-center justify-center gap-2 rounded-2xl border border-dashed border-slate-300 bg-white/50 px-4 text-sm font-bold text-slate-500 transition hover:border-emerald-400 hover:bg-emerald-50 hover:text-emerald-700"><Plus className="size-4" /> Add column</button>
             </div>
           )}
         </section>
 
-        {showActivity && <aside className="hidden w-80 shrink-0 overflow-y-auto border-l border-slate-200 bg-white p-5 lg:block"><div className="mb-6 flex items-center justify-between"><h2 className="font-bold">Recent activity</h2><button onClick={() => setShowActivity(false)}><X className="size-4 text-slate-400" /></button></div><div className="space-y-5">{activity.map((item) => { const actor = item.actor_id ? memberById.get(item.actor_id) : null; return <div key={item.id} className="flex gap-3"><Avatar small name={actor?.display_name ?? actor?.email ?? 'System'} /><div className="min-w-0"><p className="text-xs leading-5"><strong>{actor?.display_name ?? actor?.email?.split('@')[0] ?? 'Someone'}</strong> {item.action} {item.entity_type === 'task' && <span className="font-medium">“{item.metadata?.title}”</span>}</p><p className="mt-1 flex items-center gap-1 text-[10px] text-slate-400"><Clock3 className="size-3" />{timeAgo(item.created_at)}</p></div></div>; })}</div></aside>}
+        {showActivity && <aside className="hidden w-80 shrink-0 overflow-y-auto border-l border-slate-200 bg-white p-5 lg:block"><div className="mb-6 flex items-center justify-between"><h2 className="font-bold">Recent activity</h2><button onClick={() => setShowActivity(false)}><X className="size-4 text-slate-400" /></button></div><div className="space-y-5">{activity.map((item) => { const actor = item.actor_id ? memberById.get(item.actor_id) : null; return <div key={item.id} className="flex gap-3"><Avatar small name={actor?.display_name ?? actor?.email ?? 'System'} /><div className="min-w-0"><p className="text-xs leading-5"><strong>{actor?.display_name ?? actor?.email?.split('@')[0] ?? 'Someone'}</strong> {item.action} {item.entity_type === 'task' && <span className="font-medium">{item.metadata?.title}</span>}</p><p className="mt-1 flex items-center gap-1 text-[10px] text-slate-400"><Clock3 className="size-3" />{timeAgo(item.created_at)}</p></div></div>; })}</div></aside>}
       </div>
 
       {editor && <TaskEditor workspaceId={workspace.id} userId={user.id} task={editor.task} columnId={editor.columnId} members={members} onClose={() => setEditor(null)} onSaved={() => { setEditor(null); void loadBoard(); }} />}
@@ -230,18 +236,18 @@ function TaskEditor({ workspaceId, userId, task, columnId, members, onClose, onS
         <div className={`grid ${task ? 'lg:grid-cols-[1fr_280px]' : ''}`}>
           <form onSubmit={save} className="space-y-5 p-6">
             <label className="block"><span className="mb-2 block text-xs font-bold text-slate-500">Title</span><input autoFocus required maxLength={160} value={title} onChange={(e) => setTitle(e.target.value)} className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:border-emerald-400" placeholder="What needs to be done?" /></label>
-            <label className="block"><span className="mb-2 block text-xs font-bold text-slate-500">Description</span><textarea rows={5} value={description} onChange={(e) => setDescription(e.target.value)} className="w-full resize-none rounded-xl border border-slate-200 px-4 py-3 text-sm leading-6 outline-none focus:border-emerald-400" placeholder="Add context, acceptance criteria, or links…" /></label>
+            <label className="block"><span className="mb-2 block text-xs font-bold text-slate-500">Description</span><textarea rows={5} value={description} onChange={(e) => setDescription(e.target.value)} className="w-full resize-none rounded-xl border border-slate-200 px-4 py-3 text-sm leading-6 outline-none focus:border-emerald-400" placeholder="Add context, acceptance criteria, or links?" /></label>
             <div className="grid gap-4 sm:grid-cols-3">
               <label><span className="mb-2 block text-xs font-bold text-slate-500">Priority</span><select value={priority} onChange={(e) => setPriority(e.target.value as Priority)} className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none"><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></label>
               <label><span className="mb-2 block text-xs font-bold text-slate-500">Due date</span><input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none" /></label>
               <label><span className="mb-2 block text-xs font-bold text-slate-500">Assignee</span><select value={assignee} onChange={(e) => setAssignee(e.target.value)} className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none"><option value="">Unassigned</option>{members.map((member) => <option key={member.user_id} value={member.user_id}>{member.profiles?.display_name ?? member.profiles?.email}</option>)}</select></label>
             </div>
             {error && <p className="text-sm text-rose-600">{error}</p>}
-            <div className="flex items-center justify-between border-t border-slate-100 pt-5">{task ? <button type="button" onClick={removeTask} className="flex items-center gap-2 text-xs font-bold text-rose-600"><Trash2 className="size-4" />Delete</button> : <span />}<button disabled={saving} className="flex items-center gap-2 rounded-xl bg-emerald-500 px-5 py-2.5 text-sm font-bold text-white hover:bg-emerald-600 disabled:opacity-50"><Check className="size-4" />{saving ? 'Saving…' : 'Save task'}</button></div>
+            <div className="flex items-center justify-between border-t border-slate-100 pt-5">{task ? <button type="button" onClick={removeTask} className="flex items-center gap-2 text-xs font-bold text-rose-600"><Trash2 className="size-4" />Delete</button> : <span />}<button disabled={saving} className="flex items-center gap-2 rounded-xl bg-emerald-500 px-5 py-2.5 text-sm font-bold text-white hover:bg-emerald-600 disabled:opacity-50"><Check className="size-4" />{saving ? 'Saving?' : 'Save task'}</button></div>
           </form>
           {task && <aside className="border-t border-slate-100 bg-slate-50/70 p-5 lg:border-l lg:border-t-0">
             <div><div className="flex items-center justify-between"><h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">Attachments</h3><label className="cursor-pointer rounded-lg p-1.5 text-emerald-600 hover:bg-emerald-50"><Upload className="size-4" /><input type="file" className="hidden" onChange={uploadFile} /></label></div><div className="mt-3 space-y-2">{attachments.length === 0 ? <p className="text-xs text-slate-400">No files attached.</p> : attachments.map((file) => <a key={file.id} href={file.url} target="_blank" rel="noreferrer" className="flex items-center gap-2 rounded-xl bg-white p-2.5 text-xs font-medium shadow-sm hover:text-emerald-600"><Paperclip className="size-3.5 shrink-0" /><span className="truncate">{file.file_name}</span></a>)}</div></div>
-            <div className="mt-7"><h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">Discussion</h3><div className="mt-3 max-h-48 space-y-3 overflow-y-auto">{comments.length === 0 ? <p className="text-xs text-slate-400">Start the conversation.</p> : comments.map((item) => <div key={item.id} className="rounded-xl bg-white p-3 shadow-sm"><p className="text-[10px] font-bold text-slate-500">{item.profiles?.display_name ?? item.profiles?.email?.split('@')[0]}</p><p className="mt-1 text-xs leading-5 text-slate-700">{item.body}</p></div>)}</div><form onSubmit={addComment} className="mt-3 flex gap-2"><input value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Write a comment…" className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs outline-none focus:border-emerald-400" /><button aria-label="Send comment" className="grid size-9 place-items-center rounded-xl bg-slate-900 text-white"><Send className="size-3.5" /></button></form></div>
+            <div className="mt-7"><h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">Discussion</h3><div className="mt-3 max-h-48 space-y-3 overflow-y-auto">{comments.length === 0 ? <p className="text-xs text-slate-400">Start the conversation.</p> : comments.map((item) => <div key={item.id} className="rounded-xl bg-white p-3 shadow-sm"><p className="text-[10px] font-bold text-slate-500">{item.profiles?.display_name ?? item.profiles?.email?.split('@')[0]}</p><p className="mt-1 text-xs leading-5 text-slate-700">{item.body}</p></div>)}</div><form onSubmit={addComment} className="mt-3 flex gap-2"><input value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Write a comment?" className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs outline-none focus:border-emerald-400" /><button aria-label="Send comment" className="grid size-9 place-items-center rounded-xl bg-slate-900 text-white"><Send className="size-3.5" /></button></form></div>
           </aside>}
         </div>
       </div>

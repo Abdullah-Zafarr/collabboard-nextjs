@@ -265,7 +265,7 @@ using (bucket_id = 'task-attachments' and public.can_access_workspace_file(name)
 create policy "members upload task files" on storage.objects for insert to authenticated
 with check (bucket_id = 'task-attachments' and public.can_access_workspace_file(name));
 create policy "members delete own task files" on storage.objects for delete to authenticated
-using (bucket_id = 'task-attachments' and owner_id = auth.uid() and public.can_access_workspace_file(name));
+using (bucket_id = 'task-attachments' and owner_id = auth.uid()::text and public.can_access_workspace_file(name));
 
 do $$
 begin
